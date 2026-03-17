@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useTravelStore } from '../store/useTravelStore';
 
-const ItineraryTableNative = () => {
+const ItineraryTableNative = ({ renderLeft }: { renderLeft?: React.ReactNode }) => {
     const locations = useTravelStore((state) => state.locations);
 
     return (

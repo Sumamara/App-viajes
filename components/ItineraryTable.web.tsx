@@ -431,7 +431,7 @@ const RowActionCell = (props: any) => {
     );
 };
 
-const DayTabs = () => {
+const DayTabs = ({ renderLeft }: { renderLeft?: React.ReactNode }) => {
     const { locations, columns, days, activeDayId, setActiveDay, addDay, removeDay, renameDay, duplicateDay, reorderDays, importData } = useTravelStore();
     const [editingDayId, setEditingDayId] = useState<string | null>(null);
     const [editTitle, setEditTitle] = useState('');
@@ -480,10 +480,19 @@ const DayTabs = () => {
                 />
             )}
             <div style={{
-                display: 'flex', gap: '8px', padding: '16px 28px 0px 28px', backgroundColor: '#ffffff',
-                alignItems: 'center', overflowX: 'auto', overflowY: 'hidden', borderBottom: '1px solid transparent',
-                scrollbarWidth: 'none', msOverflowStyle: 'none'
-            }} className="hide-scrollbar">
+                display: 'flex', backgroundColor: '#ffffff',
+                alignItems: 'center', borderBottom: '1px solid #f1f5f9'
+            }}>
+                {renderLeft && (
+                    <div style={{ flexShrink: 0, paddingLeft: '16px' }}>
+                        {renderLeft}
+                    </div>
+                )}
+                <div style={{
+                    display: 'flex', gap: '8px', padding: renderLeft ? '16px 28px 0px 8px' : '16px 28px 0px 28px',
+                    alignItems: 'center', overflowX: 'auto', overflowY: 'hidden', flex: 1,
+                    scrollbarWidth: 'none', msOverflowStyle: 'none'
+                }} className="hide-scrollbar">
                 {days.map((day) => {
                     const isActive = day.id === activeDayId;
                     const isEditing = editingDayId === day.id;
@@ -614,10 +623,11 @@ const DayTabs = () => {
                 </button>
             </div>
         </div>
+    </div>
     );
 };
 
-const ItineraryTableWeb = () => {
+const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => {
     const { locations, activeDayId, columns, updateLocation, reorderLocations, addLocation, removeLocation, addColumn, removeColumn, duplicateLocation, updateColumnType } = useTravelStore();
 
     const activeLocations = useMemo(() => {
@@ -733,7 +743,7 @@ const ItineraryTableWeb = () => {
 
     return (
         <View style={styles.container}>
-            <DayTabs />
+            <DayTabs renderLeft={renderLeft} />
 
             <div style={{ flex: 1, width: '100%', position: 'relative', background: '#f8fafc' }}>
                 <APIProvider apiKey={process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''}>

@@ -4,7 +4,7 @@ import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'r
 import MapComponent from '../../components/Map';
 // @ts-ignore
 import { usePathname, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Upload } from 'lucide-react-native';
 import ItineraryTableComponent from '../../components/ItineraryTable';
 import { useTravelStore } from '../../store/useTravelStore';
 
@@ -151,16 +151,18 @@ export default function HomeScreen() {
         {mapVisible && (
           <View style={[
             styles.panel,
-            isDesktop ? (tableVisible ? styles.panelMap : styles.panelFull) : styles.panelFull
+            isDesktop ? (tableVisible ? styles.panelMap : styles.panelFull) : (tableVisible ? { flex: 0.4 } : styles.panelFull)
           ]}>
             <MapComponent />
-            {isDesktop && tableVisible && (
+            {tableVisible && (
               <div
                 onClick={() => setMapVisible(false)}
                 style={{
-                  position: 'absolute', top: 10, left: 8,
+                  position: 'absolute', 
+                  top: 10, 
+                  left: 8,
                   zIndex: 20,
-                  height: 40, padding: '0 10px',
+                  height: 36, padding: '0 12px',
                   backgroundColor: 'white', borderRadius: 8,
                   border: 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -171,51 +173,74 @@ export default function HomeScreen() {
                 onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
                 onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = 'white'; }}
               >
-                <ChevronLeft size={16} color="#64748b" />
+                {isDesktop ? <ChevronLeft size={16} color="#64748b" /> : <ChevronUp size={16} color="#64748b" />}
               </div>
             )}
           </View>
         )}
 
         {/* Restore strip for map */}
-        {!mapVisible && isDesktop && (
+        {!mapVisible && (
           <div
             onClick={() => setMapVisible(true)}
             style={{
-              width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: isDesktop ? 20 : '100%', 
+              height: isDesktop ? 'auto' : 32,
+              marginBottom: isDesktop ? 0 : 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
-              borderRadius: '0 10px 10px 0', cursor: 'pointer',
+              borderRadius: isDesktop ? '0 10px 10px 0' : 8, 
+              cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'background 0.2s',
             }}
             onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
             onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
           >
-            <ChevronRight size={16} color="#64748b" />
+            {isDesktop ? <ChevronRight size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
           </div>
         )}
 
-        {/* Gap between panels */}
-        {isDesktop && mapVisible && tableVisible && <View style={{ width: 20 }} />}
+        {/* Gap between panels or vertical separator */}
+        {mapVisible && tableVisible && (
+          <View style={isDesktop ? { width: 20 } : { height: 16 }} />
+        )}
 
         {/* TABLE PANEL */}
         {tableVisible && (
           <View style={[
             styles.panel,
-            isDesktop ? (mapVisible ? styles.panelTable : styles.panelFull) : styles.panelFull
+            isDesktop ? (mapVisible ? styles.panelTable : styles.panelFull) : (mapVisible ? { flex: 0.6 } : styles.panelFull)
           ]}>
-            <ItineraryTableComponent />
+            <ItineraryTableComponent renderLeft={
+              !isDesktop && mapVisible ? (
+                <div
+                  onClick={() => setTableVisible(false)}
+                  style={{
+                    height: 36, padding: '0 12px',
+                    backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: 8,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  <ChevronDown size={16} color="#64748b" />
+                </div>
+              ) : undefined
+            } />
             {isDesktop && mapVisible && (
               <div
                 onClick={() => setTableVisible(false)}
                 style={{
-                  position: 'absolute', top: 10, right: 20,
+                  position: 'absolute', 
+                  top: 10,
+                  right: 20,
                   zIndex: 20,
-                  height: 40, padding: '0 10px',
+                  height: 36, padding: '0 12px',
                   backgroundColor: 'white',
                   border: 'none',
                   borderRadius: 8,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                   transition: 'all 0.2s ease',
                 }}
                 onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
@@ -228,19 +253,23 @@ export default function HomeScreen() {
         )}
 
         {/* Restore strip for table */}
-        {!tableVisible && isDesktop && (
+        {!tableVisible && (
           <div
             onClick={() => setTableVisible(true)}
             style={{
-              width: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: isDesktop ? 20 : '100%', 
+              height: isDesktop ? 'auto' : 32,
+              marginTop: isDesktop ? 0 : 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
-              borderRadius: '10px 0 0 10px', cursor: 'pointer',
+              borderRadius: isDesktop ? '10px 0 0 10px' : 8, 
+              cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'background 0.2s',
             }}
             onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
             onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
           >
-            <ChevronLeft size={16} color="#64748b" />
+            {isDesktop ? <ChevronLeft size={16} color="#64748b" /> : <ChevronUp size={16} color="#64748b" />}
           </div>
         )}
 
