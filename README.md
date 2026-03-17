@@ -1,50 +1,67 @@
-# Welcome to your Expo app 👋
+# 🌍 Planificador de Viajes (Sumamara)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Una aplicación universal (Web & Móvil) diseñada para planificar itinerarios de viaje de forma visual, rápida y fluida. Desarrollada con **Expo**, **React Native** y optimizada para la Web con **AG-Grid** y **Google Maps**.
 
-## Get started
+## 🚀 Características Principales
 
-1. Install dependencies
+### 🗺️ Mapa Interactivo
+- Ubicación de puntos de interés con clic derecho/pulsación larga.
+- Dibujo automático de rutas entre destinos.
+- Integración con la API de Google Maps para búsquedas y vista satelital.
 
+### 📊 Tabla de Itinerario Dinámica
+- Edición en tiempo real de actividades, horarios y costos.
+- Columnas personalizables (añadir/eliminar/renombrar).
+- Reordenamiento de actividades mediante arrastrar y soltar (drag & drop).
+- Cálculo automático de totales (costos, distancias) en la parte inferior.
+
+### 💾 Persistencia de Datos
+- **Guardar JSON**: Exporta todo tu plan de viaje a un archivo local.
+- **Cargar JSON**: Importa tus planes guardados para seguir editando en cualquier momento.
+
+### 📱 Diseño Premium & Responsivo
+- Interfaz totalmente adaptada a dispositivos móviles.
+- Panel superior ("Header") compacto en móviles con iconos inteligentes.
+- Ajustes de visibilidad de paneles (Map/Table) optimizados para pantallas pequeñas.
+- Tipografía limpia basada en **Arial** para una lectura clara.
+
+## 🛠️ Desarrollo Local
+
+1. **Instalar dependencias**:
    ```bash
    npm install
    ```
 
-2. Start the app
+2. **Configurar Variables de Entorno**:
+   Crea un archivo `.env` o usa las variables en `app.json` para tu API Key de Google Maps.
 
+3. **Iniciar en Web**:
+   ```bash
+   npm run web
+   ```
+
+4. **Iniciar en Expo Go (Móvil)**:
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+## 🌐 Despliegue
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+La aplicación está lista para desplegarse en **GitHub Pages**:
 
 ```bash
-npm run reset-project
+npm run deploy
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+La URL del proyecto es: `https://Sumamara.github.io/App-viajes/`
 
-## Learn more
+## 📦 Tecnologías
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Fronend**: Expo / React Native (Web & Mobile).
+- **Tablas**: AG-Grid Community.
+- **Mapas**: @vis.gl/react-google-maps.
+- **Estructura**: Expo Router.
+- **Estado**: Zustan (Store).
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+*Creado con ❤️ para viajeros que aman la organización.*
