@@ -23,7 +23,6 @@
     },
     "web": {
       "output": "static",
-      "baseUrl": "/App-viajes",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -42,6 +41,7 @@
       ]
     ],
     "experiments": {
+      "baseUrl": "/App-viajes",
       "typedRoutes": true,
       "reactCompiler": true
     }
