@@ -1,8 +1,8 @@
 import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
-import { Copy, GripVertical, MapPin, MoreVertical, Plus, Trash, Trash2 } from 'lucide-react-native';
+import { Circle, CheckCircle2, Copy, GripVertical, MapPin, MoreVertical, Plus, Star, Trash, Trash2 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTravelStore } from '../store/useTravelStore';
 
 let AgGridReact: any;
@@ -47,7 +47,7 @@ const CustomHeader = (props: any) => {
         const rect = e.currentTarget.getBoundingClientRect();
         setMenuPosition({
             top: rect.bottom + (typeof window !== 'undefined' ? window.scrollY : 0) + 4,
-            left: rect.left + (typeof window !== 'undefined' ? window.scrollX : 0) - 150
+            left: rect.left + (typeof window !== 'undefined' ? window.scrollX : 0)
         });
         setIsOpen(!isOpen);
     };
@@ -60,27 +60,38 @@ const CustomHeader = (props: any) => {
         }
     };
 
+    // Hide menu for special columns (Checkmark, Numbering)
+    const isSpecialCol = !props.displayName || props.displayName === '✓';
+
     return (
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', paddingRight: '24px' }}>
-            <span style={{ color: '#475569', letterSpacing: '0.5px', textTransform: 'uppercase', fontSize: '11px', fontWeight: 'bold' }}>{props.displayName}</span>
-            <div
-                onClick={toggleMenu}
-                style={{
-                    cursor: 'pointer',
-                    padding: '4px',
-                    borderRadius: '6px',
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#94a3b8',
-                    marginRight: '4px'
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}
-            >
-                <MoreVertical size={14} />
-            </div>
+        <div 
+            onClick={!isSpecialCol ? toggleMenu : undefined}
+            style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '4px', 
+                padding: '0 8px',
+                width: '100%',
+                height: '100%',
+                cursor: isSpecialCol ? 'default' : 'pointer',
+                justifyContent: isSpecialCol ? 'center' : 'flex-start',
+                transition: 'background-color 0.2s ease',
+                borderRadius: '8px'
+            }}
+            onMouseEnter={(e) => { if (!isSpecialCol) e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+            onMouseLeave={(e) => { if (!isSpecialCol) e.currentTarget.style.backgroundColor = 'transparent'; }}
+        >
+            <span style={{ 
+                color: isSpecialCol ? '#64748b' : '#4f46e5', 
+                letterSpacing: '0.8px', 
+                textTransform: 'uppercase', 
+                fontSize: '11px', 
+                fontWeight: '800',
+                userSelect: 'none',
+                whiteSpace: 'nowrap'
+            }}>
+                {props.displayName}
+            </span>
 
             {isOpen && typeof document !== 'undefined' && createPortal(
                 <>
@@ -153,6 +164,56 @@ const CustomHeader = (props: any) => {
                 </>,
                 document.body
             )}
+        </div>
+    );
+};
+
+// Cell Renderer for Completion Checkbox (Traveling Mode)
+const CheckCell = (props: any) => {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%', justifyContent: 'center' }}>
+            <TouchableOpacity 
+                onPress={() => props.context.toggleLocationCompleted(props.data.id)}
+                style={{ padding: 4 }}
+            >
+                {props.data.completed ? (
+                    <CheckCircle2 size={24} color="#10b981" fill="#ecfdf5" />
+                ) : (
+                    <Circle size={24} color="#94a3b8" />
+                )}
+            </TouchableOpacity>
+        </div>
+    );
+};
+
+// Cell Renderer for Category (Principal/Opcional)
+const CategoryCell = (props: any) => {
+    const isPrincipal = props.data.category === 'principal' || !props.data.category;
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%', gap: '8px' }}>
+            <TouchableOpacity 
+                onPress={() => props.context.updateLocationCategory(props.data.id, isPrincipal ? 'opcional' : 'principal')}
+                style={{
+                    backgroundColor: isPrincipal ? '#4f46e5' : '#f1f5f9',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: '8px',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4
+                }}
+            >
+                {isPrincipal && <Star size={10} color="#fff" fill="#fff" />}
+                <Text style={{ 
+                    fontSize: 11, 
+                    fontWeight: '800', 
+                    color: isPrincipal ? '#fff' : '#64748b',
+                    textTransform: 'uppercase'
+                }}>
+                    {isPrincipal ? 'VIP' : 'Opt'}
+                </Text>
+            </TouchableOpacity>
         </div>
     );
 };
@@ -341,6 +402,7 @@ const RowActionCell = (props: any) => {
 
     const handleNumberClick = (e: any) => {
         e.stopPropagation();
+        // Just center the map
         if (props.data && props.data.coordinates) {
             window.dispatchEvent(new CustomEvent('centerMapOnLocation', {
                 detail: { lat: props.data.coordinates[0], lng: props.data.coordinates[1] }
@@ -369,26 +431,27 @@ const RowActionCell = (props: any) => {
                 <div
                     style={{
                         cursor: 'pointer',
-                        backgroundColor: '#e0e7ff',
-                        color: '#4338ca',
+                        backgroundColor: props.value?.completed ? '#10b981' : (props.value?.category === 'opcional' ? '#9333ea' : '#4f46e5'),
+                        color: 'white',
                         fontWeight: '800',
                         width: '30px',
                         height: '30px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        borderRadius: '8px',
+                        borderRadius: '50%',
                         fontSize: '13px',
-                        transition: 'all 0.2s ease',
-                        boxShadow: '0 2px 4px rgba(67, 56, 202, 0.1)',
-                        flexShrink: 0
+                        transition: 'all 0.3s ease',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                        flexShrink: 0,
+                        border: '2px solid white'
                     }}
                     onClick={handleNumberClick}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#4f46e5'; e.currentTarget.style.color = 'white'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#e0e7ff'; e.currentTarget.style.color = '#4338ca'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                    title="Centrar en el Mapa"
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                    title="Centrar en el Mapa (Clic para opciones)"
                 >
-                    {props.value}
+                    {props.value?.planNumber || props.value}
                 </div>
             )}
 
@@ -404,6 +467,25 @@ const RowActionCell = (props: any) => {
                         boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05)',
                         zIndex: 99999, minWidth: 180, overflow: 'hidden', padding: '6px'
                     }}>
+                        <div
+                            style={{ padding: '10px 14px', fontSize: 13, cursor: 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: 10, fontWeight: '700', color: '#4f46e5', fontFamily: 'Arial' }}
+                            onClick={(e) => { e.stopPropagation(); context.updateLocationCategory(props.data.id, 'principal'); setIsOpen(false); }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            <div style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#4f46e5' }} />
+                            <span>Principal (Azul)</span>
+                        </div>
+                        <div
+                            style={{ padding: '10px 14px', fontSize: 13, cursor: 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: 10, fontWeight: '700', color: '#9333ea', fontFamily: 'Arial' }}
+                            onClick={(e) => { e.stopPropagation(); context.updateLocationCategory(props.data.id, 'opcional'); setIsOpen(false); }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            <div style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#9333ea' }} />
+                            <span>Opcional (Morado)</span>
+                        </div>
+                        <div style={{ height: '1px', backgroundColor: '#f1f5f9', margin: '4px 0' }} />
                         <div
                             style={{ padding: '10px 14px', fontSize: 13, cursor: 'pointer', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: 10, fontWeight: '700', color: '#4f46e5', fontFamily: 'Arial' }}
                             onClick={(e) => { e.stopPropagation(); context.duplicateLocation(props.data.id); setIsOpen(false); }}
@@ -627,11 +709,15 @@ const DayTabs = ({ renderLeft }: { renderLeft?: React.ReactNode }) => {
     );
 };
 
-const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => {
-    const { locations, activeDayId, columns, updateLocation, reorderLocations, addLocation, removeLocation, addColumn, removeColumn, duplicateLocation, updateColumnType } = useTravelStore();
+const ItineraryTableWeb = ({ renderLeft, mode = 'editor' }: { renderLeft?: React.ReactNode, mode?: 'editor' | 'travel' }) => {
+    const { locations, activeDayId, columns, columnState, importTrigger, updateColumnState, updateLocation, reorderLocations, addLocation, removeLocation, addColumn, removeColumn, duplicateLocation, updateColumnType, toggleLocationCompleted, updateLocationCategory } = useTravelStore();
+
+    const isTravel = mode === 'travel';
 
     const activeLocations = useMemo(() => {
-        return locations.filter(loc => loc.dayId === activeDayId);
+        const filtered = locations.filter(loc => loc.dayId === activeDayId);
+        // Carry original index for stable AG-Grid sorting
+        return filtered.map((l, i) => ({ ...l, planNumber: i + 1, originalIndex: i }));
     }, [locations, activeDayId]);
 
     const pinnedBottomRowData = useMemo(() => {
@@ -650,7 +736,7 @@ const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => 
 
             if (isNumericCol) {
                 const sum = activeLocations.reduce((acc, loc) => {
-                    const val = loc[col.id];
+                    const val = (loc as any)[col.id];
                     if (!val) return acc;
                     // Extract numbers from string (handles "$100", "10.5 km", etc)
                     const numMatch = String(val).match(/[-+]?[0-9]*\.?[0-9]+/);
@@ -672,25 +758,76 @@ const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => 
         return [totals];
     }, [activeLocations, columns]);
 
-    // Auto-scroll logic variables
-    const [gridApi, setGridApi] = useState<any>(null);
-    const prevLocationsLengthRef = React.useRef(activeLocations.length);
+    const [gridApi, setGridApi] = React.useState<any>(null);
+    const shouldScrollRef = React.useRef(false);
 
     React.useEffect(() => {
-        if (gridApi && activeLocations.length > prevLocationsLengthRef.current) {
-            // Un nuevo lugar fue añadido
+        if (!gridApi) return;
+        if (isTravel) {
+            gridApi.applyColumnState({
+                state: [{ colId: 'completedSortCol', sort: 'asc' }],
+                defaultState: { sort: null }
+            });
+        } else {
+            gridApi.applyColumnState({
+                defaultState: { sort: null }
+            });
+        }
+    }, [isTravel, gridApi]);
+
+    // Restore column state when importing
+    React.useEffect(() => {
+        if (gridApi && columnState) {
+            // Strip out legacy 'flex' to prevent old localStorage states from forcibly resizing columns
+            const cleanState = columnState.map((c: any) => ({ ...c, flex: null }));
+            gridApi.applyColumnState({ state: cleanState, applyOrder: true });
+            if (isTravel) {
+                gridApi.applyColumnState({
+                    state: [{ colId: 'completedSortCol', sort: 'asc' }],
+                    defaultState: { sort: null }
+                });
+            }
+        }
+    }, [gridApi, importTrigger]);
+
+    // Save column state when user interacts
+    const handleColumnChange = React.useCallback(() => {
+        if (gridApi) {
+            const state = gridApi.getColumnState().map((c: any) => ({
+                colId: c.colId, width: c.width, hide: c.hide, pinned: c.pinned
+            }));
+            updateColumnState(state);
+        }
+    }, [gridApi, updateColumnState]);
+
+    React.useEffect(() => {
+        const handleEvent = () => { shouldScrollRef.current = true; };
+        window.addEventListener('travel-scroll-to-bottom', handleEvent);
+        return () => window.removeEventListener('travel-scroll-to-bottom', handleEvent);
+    }, []);
+
+    React.useEffect(() => {
+        if (gridApi && shouldScrollRef.current) {
+            shouldScrollRef.current = false;
             setTimeout(() => {
                 gridApi.ensureIndexVisible(activeLocations.length - 1, 'bottom');
-            }, 100); // Pequeño retraso para asegurar que AG-Grid ya renderizó la nueva fila
+            }, 50);
         }
-        prevLocationsLengthRef.current = activeLocations.length;
     }, [activeLocations.length, gridApi]);
+
 
     const colDefs = useMemo(() => {
         const defs: any[] = [
             {
                 headerName: '',
-                valueGetter: (params: any) => params.node.rowPinned === 'bottom' ? '' : params.node.rowIndex + 1,
+                valueGetter: (params: any) => {
+                    if (params.node.rowPinned === 'bottom') return '';
+                    return {
+                        planNumber: params.data.planNumber || params.node.rowIndex + 1,
+                        category: params.data.category,
+                        completed: params.data.completed
+                    };
+                },
                 width: 80,
                 minWidth: 80,
                 maxWidth: 80,
@@ -701,9 +838,42 @@ const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => 
                 filter: false,
                 resizable: false,
                 cellRenderer: RowActionCell,
-                cellStyle: { paddingLeft: '8px', borderRight: '1px solid #f1f5f9' }
+                cellStyle: (params: any) => {
+                    if (params.node.rowPinned === 'bottom') return { paddingLeft: '8px', borderRight: '1px solid #f1f5f9' };
+                    return { 
+                        paddingLeft: '8px', 
+                        borderRight: '1px solid #f1f5f9', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        fontWeight: '800', 
+                        color: '#64748b'
+                    };
+                }
             }
         ];
+
+        if (isTravel) {
+            defs.push({
+                colId: 'completedSortCol',
+                headerName: '✓',
+                field: 'completed',
+                width: 60,
+                minWidth: 60,
+                maxWidth: 60,
+                pinned: 'left',
+                cellRenderer: CheckCell,
+                cellStyle: { borderRight: '1px solid #f1f5f9' },
+                sortable: false,
+                suppressMenu: true,
+                comparator: (valueA: any, valueB: any, nodeA: any, nodeB: any) => {
+                    const aComp = nodeA.data.completed ? 1 : 0;
+                    const bComp = nodeB.data.completed ? 1 : 0;
+                    if (aComp !== bComp) return aComp - bComp;
+                    return (nodeA.data.originalIndex || 0) - (nodeB.data.originalIndex || 0);
+                }
+            });
+        }
 
         columns.forEach((col) => {
             const isPlace = col.title === 'Lugar';
@@ -712,16 +882,18 @@ const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => 
             defs.push({
                 field: col.id,
                 headerName: col.title,
-                flex: 1,
-                minWidth: 180,
+                width: 200,
+                minWidth: 50,
                 suppressMenu: true,
+                sortable: !isTravel,
                 editable: (params: any) => !params.node.rowPinned,
                 headerComponent: CustomHeader,
                 cellEditor: isPlace ? PlaceEditor : (isDate ? 'agDateStringCellEditor' : 'agTextCellEditor'),
                 cellRenderer: isPlace ? PlaceRenderer : undefined,
                 valueFormatter: isDate ? (params: any) => {
                     if (!params.value) return '';
-                    const d = new Date(params.value);
+                    // Append T00:00:00 to force local time parsing instead of UTC
+                    const d = new Date(params.value + 'T00:00:00');
                     if (isNaN(d.getTime())) return params.value;
                     const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
                     return `${days[d.getDay()]} ${d.getDate()}`;
@@ -731,9 +903,10 @@ const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => 
         });
 
         return defs;
-    }, [columns]);
+    }, [columns, isTravel]);
 
     const onRowDragEnd = (e: any) => {
+        if (isTravel) return; // Prevent reordering during travel mode
         const newLocations: any[] = [];
         e.api.forEachNode((node: any) => newLocations.push(node.data));
         reorderLocations(newLocations);
@@ -752,15 +925,19 @@ const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => 
                         rowData={activeLocations}
                         columnDefs={colDefs}
                         getRowId={(params: any) => params.data.id}
-                        rowDragManaged={true}
+                        rowDragManaged={!isTravel}
                         animateRows={true}
-                        context={{ removeLocation, removeColumn, updateColumnType, duplicateLocation, addColumn }}
+                        suppressRowClickSelection={true}
+                        onColumnResized={handleColumnChange}
+                        onColumnMoved={handleColumnChange}
+                        onDisplayedColumnsChanged={handleColumnChange}
+                        context={{ removeLocation, removeColumn, updateColumnType, duplicateLocation, addColumn, toggleLocationCompleted, updateLocationCategory, gridApi, isTravel }}
                         onRowDragEnd={onRowDragEnd}
                         onGridReady={(params: any) => setGridApi(params.api)}
                         onCellValueChanged={(e: any) => updateLocation(e.data.id, { [e.column.colId]: e.newValue })}
                         getRowHeight={(params: any) => {
                             if (params.node.rowPinned === 'bottom') return 40;
-                            return 48;
+                            return 54;
                         }}
                         pinnedBottomRowData={pinnedBottomRowData}
                         getRowStyle={(params: any) => {
@@ -772,6 +949,18 @@ const ItineraryTableWeb = ({ renderLeft }: { renderLeft?: React.ReactNode }) => 
                                     color: '#1e293b',
                                     display: 'flex',
                                     alignItems: 'center'
+                                };
+                            }
+                            
+                            const isPrincipal = params.data.category === 'principal' || !params.data.category;
+                            const isCompleted = params.data.completed;
+
+                            if (isTravel) {
+                                return {
+                                    backgroundColor: isCompleted ? '#f8fafc' : (isPrincipal ? '#f5f3ff' : '#faf5ff'),
+                                    transition: 'all 0.3s ease',
+                                    opacity: isCompleted ? 0.6 : 1,
+                                    textDecoration: isCompleted ? 'line-through' : 'none'
                                 };
                             }
                             return undefined;

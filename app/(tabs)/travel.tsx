@@ -9,39 +9,12 @@ import ItineraryTableComponent from '../../components/ItineraryTable';
 import { useTravelStore } from '../../store/useTravelStore';
 import { savePlan, loadPlan, checkPlanExists } from '../../lib/planService';
 
-export default function HomeScreen() {
+export default function TravelScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const router = useRouter();
   const pathname = usePathname();
-  const { locations, columns, days, activeDayId, importData, mapConfig, columnState } = useTravelStore();
-
-  const handleExport = () => {
-    const data = { locations, columns, days, activeDayId, mapConfig, columnState };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `itinerario-viaje.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = (e: any) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        importData(json);
-      } catch (err) {
-        alert('Error al cargar el archivo JSON. Asegúrate de que es un archivo válido.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
+  const { locations, columns, days, activeDayId, importData } = useTravelStore();
 
   const [isSharing, setIsSharing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -54,7 +27,7 @@ export default function HomeScreen() {
     try {
       const planId = projectName.toLowerCase().trim().replace(/\s+/g, '-');
       if (!planId) { alert('Por favor pon un nombre al proyecto primero.'); return; }
-      const data = { locations, columns, days, activeDayId, mapConfig, columnState };
+      const data = { locations, columns, days, activeDayId };
       const savedId = await savePlan(data, planId);
       const url = new URL(window.location.href);
       url.searchParams.delete('data');
@@ -84,7 +57,6 @@ export default function HomeScreen() {
       setProjectName(cleaned);
       setNameError('');
     } catch {
-      // If check fails, still allow the rename locally
       setProjectName(cleaned);
     }
   };
@@ -95,24 +67,13 @@ export default function HomeScreen() {
 
   React.useEffect(() => { 
     setMounted(true); 
-    
-    // URL Plan Loading Logic (Supabase)
     const params = new URLSearchParams(window.location.search);
     const planId = params.get('plan');
     if (planId) {
       setProjectName(planId);
-      loadPlan(planId).then((data) => {
-        if (data) {
-          importData(data);
-          const url = new URL(window.location.href);
-          url.searchParams.delete('plan');
-          window.history.replaceState({}, '', url.toString());
-        }
-      }).catch((err) => {
-        console.error('Error loading plan:', err);
-      });
     }
   }, []);
+
   if (!mounted) return null;
 
   return (
@@ -123,7 +84,6 @@ export default function HomeScreen() {
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
       <View style={styles.header}>
-        {/* Editable project name on the left */}
         <View style={styles.headerLeft}>
           <View style={styles.headerTitleRow}>
             {editingName ? (
@@ -149,16 +109,14 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 11, color: '#ef4444', marginLeft: 8 }}>{nameError}</Text>
             ) : isDesktop && (
               <View style={styles.headerBadge}>
-                <Text style={styles.headerBadgeText}>🌍 Diseña tu ruta ideal punto por punto</Text>
+                <Text style={styles.headerBadgeText}>🗺️ Modo Viaje Activo - Siguiendo el Cronograma</Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* Actions and nav on the right */}
         <View style={styles.headerActions}>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            {/* Share button */}
             <button
               onClick={handleShare}
               disabled={isSharing}
@@ -170,79 +128,11 @@ export default function HomeScreen() {
                 fontSize: '13px', transition: 'all 0.2s ease',
                 boxShadow: '0 1px 3px rgba(79,70,229,0.1)', fontFamily: 'Arial'
               }}
-              title="Compartir enlace del plan"
-              onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#4f46e5'; e.currentTarget.style.color = '#fff'; }}
-              onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = '#fff'; e.currentTarget.style.color = '#4f46e5'; }}
             >
               <ShareIcon size={15} color="currentColor" />
               {isDesktop && (isSharing ? 'Guardando...' : 'Compartir')}
             </button>
 
-            {/* Hamburger menu */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 38, height: 38,
-                  borderRadius: '10px', cursor: 'pointer', border: '1px solid #e0e7ff',
-                  backgroundColor: menuOpen ? '#eef2ff' : '#ffffff', color: '#4f46e5',
-                  transition: 'all 0.2s ease', boxShadow: '0 1px 3px rgba(79,70,229,0.1)'
-                }}
-                title="Más opciones"
-              >
-                <Menu size={18} color="#4f46e5" />
-              </button>
-
-              {menuOpen && (
-                <>
-                  {/* Click outside to close */}
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-                    onClick={() => setMenuOpen(false)}
-                  />
-                  <div style={{
-                    position: 'absolute', top: '44px', right: 0, zIndex: 50,
-                    backgroundColor: '#fff', borderRadius: '12px', padding: '6px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0',
-                    minWidth: '170px'
-                  }}>
-                    {/* Guardar JSON */}
-                    <button
-                      onClick={() => { handleExport(); setMenuOpen(false); }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                        padding: '10px 14px', borderRadius: '8px', cursor: 'pointer',
-                        border: 'none', background: 'transparent', color: '#334155',
-                        fontSize: 13, fontWeight: '700', fontFamily: 'Arial', textAlign: 'left'
-                      }}
-                      onMouseEnter={(e: any) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                      onMouseLeave={(e: any) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <Download size={14} color="#4f46e5" />
-                      Guardar como JSON
-                    </button>
-
-                    {/* Cargar JSON */}
-                    <label
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                        padding: '10px 14px', borderRadius: '8px', cursor: 'pointer',
-                        color: '#334155', fontSize: 13, fontWeight: '700', fontFamily: 'Arial'
-                      }}
-                      onMouseEnter={(e: any) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                      onMouseLeave={(e: any) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <Upload size={14} color="#4f46e5" />
-                      Cargar desde JSON
-                      <input type="file" accept=".json" style={{ display: 'none' }} onChange={(e) => { handleImport(e); setMenuOpen(false); }} />
-                    </label>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Nav tabs */}
             <View style={styles.headerNav}>
               {[
                 { label: 'Planificador', path: '/' },
@@ -266,8 +156,6 @@ export default function HomeScreen() {
       </View>
 
       <View style={[styles.body, isDesktop ? styles.row : styles.column]}>
-
-        {/* MAP PANEL */}
         {mapVisible && (
           <View style={[
             styles.panel,
@@ -278,20 +166,13 @@ export default function HomeScreen() {
               <div
                 onClick={() => setMapVisible(false)}
                 style={{
-                  position: 'absolute', 
-                  top: 10, 
-                  left: 8,
-                  zIndex: 20,
-                  height: 36, padding: '0 12px',
-                  backgroundColor: 'white', borderRadius: 8,
-                  border: 'none',
+                  position: 'absolute', top: 12, left: 12, zIndex: 20,
+                  height: 32, width: 32,
+                  backgroundColor: 'white', borderRadius: 8, border: '1px solid #e2e8f0',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                   transition: 'all 0.2s ease',
                 }}
-                onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
-                onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = 'white'; }}
               >
                 {isDesktop ? <ChevronLeft size={16} color="#64748b" /> : <ChevronUp size={16} color="#64748b" />}
               </div>
@@ -299,44 +180,37 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Restore strip for map */}
         {!mapVisible && (
           <div
             onClick={() => setMapVisible(true)}
             style={{
-              width: isDesktop ? 20 : '100%', 
-              height: isDesktop ? 'auto' : 32,
+              width: isDesktop ? 24 : '100%', height: isDesktop ? 'auto' : 32,
               marginBottom: isDesktop ? 0 : 8,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
-              borderRadius: isDesktop ? '0 10px 10px 0' : 8, 
-              cursor: 'pointer',
+              borderRadius: isDesktop ? '0 10px 10px 0' : 8, cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'background 0.2s',
             }}
-            onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
-            onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
           >
             {isDesktop ? <ChevronRight size={16} color="#64748b" /> : <ChevronDown size={16} color="#64748b" />}
           </div>
         )}
 
-        {/* Gap between panels or vertical separator */}
         {mapVisible && tableVisible && (
-          <View style={isDesktop ? { width: 20 } : { height: 16 }} />
+          <View style={isDesktop ? { width: 12 } : { height: 12 }} />
         )}
 
-        {/* TABLE PANEL */}
         {tableVisible && (
           <View style={[
             styles.panel,
             isDesktop ? (mapVisible ? styles.panelTable : styles.panelFull) : (mapVisible ? { flex: 0.6 } : styles.panelFull)
           ]}>
-            <ItineraryTableComponent renderLeft={
+            <ItineraryTableComponent mode="travel" renderLeft={
               !isDesktop && mapVisible ? (
                 <div
                   onClick={() => setTableVisible(false)}
                   style={{
-                    height: 36, padding: '0 12px',
+                    height: 32, padding: '0 12px',
                     backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: 8,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
@@ -350,21 +224,13 @@ export default function HomeScreen() {
               <div
                 onClick={() => setTableVisible(false)}
                 style={{
-                  position: 'absolute', 
-                  top: 10,
-                  right: 20,
-                  zIndex: 20,
-                  height: 36, padding: '0 12px',
-                  backgroundColor: 'white',
-                  border: 'none',
-                  borderRadius: 8,
+                  position: 'absolute', top: 12, right: 12, zIndex: 20,
+                  height: 32, width: 32,
+                  backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: 8,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                   transition: 'all 0.2s ease',
                 }}
-                onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
-                onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = 'white'; }}
               >
                 <ChevronRight size={16} color="#64748b" />
               </div>
@@ -372,27 +238,21 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Restore strip for table */}
         {!tableVisible && (
           <div
             onClick={() => setTableVisible(true)}
             style={{
-              width: isDesktop ? 20 : '100%', 
-              height: isDesktop ? 'auto' : 32,
+              width: isDesktop ? 20 : '100%', height: isDesktop ? 'auto' : 32,
               marginTop: isDesktop ? 0 : 8,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
-              borderRadius: isDesktop ? '10px 0 0 10px' : 8, 
-              cursor: 'pointer',
+              borderRadius: isDesktop ? '10px 0 0 10px' : 8, cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'background 0.2s',
             }}
-            onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; }}
-            onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
           >
             {isDesktop ? <ChevronLeft size={16} color="#64748b" /> : <ChevronUp size={16} color="#64748b" />}
           </div>
         )}
-
       </View>
     </View>
   );
@@ -410,13 +270,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     boxShadow: '0px 1px 4px rgba(0,0,0,0.04)',
     elevation: 2, zIndex: 10,
-
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a', letterSpacing: -0.3 },
-  headerBadge: { backgroundColor: '#eef2ff', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
-  headerBadgeText: { fontSize: 11, fontWeight: '700', color: '#6366f1' },
+  headerBadge: { backgroundColor: '#f0fdf4', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  headerBadgeText: { fontSize: 11, fontWeight: '700', color: '#10b981' },
   headerNav: { flexDirection: 'row', gap: 4, marginLeft: 8 },
   headerActions: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' },
   navBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },

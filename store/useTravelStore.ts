@@ -19,7 +19,13 @@ export interface TravelLocation {
   id: string;
   dayId: string;
   coordinates: [number, number]; // [lat, lng]
+  completed?: boolean;
+  category?: 'principal' | 'opcional';
   [key: string]: any; // Keys correspond to DynamicColumn.id
+}
+
+export interface MapConfig {
+  lineStyle: 'solid' | 'arrows' | 'none';
 }
 
 interface TravelState {
@@ -27,6 +33,9 @@ interface TravelState {
   columns: DynamicColumn[];
   days: Day[];
   activeDayId: string;
+  mapConfig: MapConfig;
+  columnState: any[] | null;
+  importTrigger: number;
 
   // Actions
   addLocation: (location: Partial<TravelLocation>) => void;
@@ -34,6 +43,8 @@ interface TravelState {
   duplicateLocation: (id: string) => void;
   removeLocation: (id: string) => void;
   reorderLocations: (newLocations: TravelLocation[]) => void;
+  toggleLocationCompleted: (id: string) => void;
+  updateLocationCategory: (id: string, category: 'principal' | 'opcional') => void;
 
   addColumn: (title: string, type: ColumnType) => void;
   removeColumn: (id: string) => void;
@@ -47,6 +58,9 @@ interface TravelState {
   reorderDays: (newDays: Day[]) => void;
   setActiveDay: (id: string) => void;
   importData: (data: any) => void;
+  updateColumnState: (state: any[]) => void;
+
+  updateMapConfig: (config: Partial<MapConfig>) => void;
 }
 
 // Fixed IDs for initial columns so they align by default
@@ -77,6 +91,10 @@ const initialDays: Day[] = [
 ];
 
 const initialLocations: TravelLocation[] = [];
+
+const initialMapConfig: MapConfig = {
+  lineStyle: 'arrows'
+};
 
 // Haversine formula for distance
 function deg2rad(deg: number) {
@@ -132,7 +150,7 @@ function loadFromStorage() {
   return null;
 }
 
-function saveToStorage(state: Pick<TravelState, 'locations' | 'columns' | 'days' | 'activeDayId'>) {
+function saveToStorage(state: Pick<TravelState, 'locations' | 'columns' | 'days' | 'activeDayId' | 'mapConfig'>) {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -140,6 +158,7 @@ function saveToStorage(state: Pick<TravelState, 'locations' | 'columns' | 'days'
         columns: state.columns,
         days: state.days,
         activeDayId: state.activeDayId,
+        mapConfig: state.mapConfig,
       }));
     }
   } catch {}
@@ -149,8 +168,11 @@ const saved = loadFromStorage();
 export const useTravelStore = create<TravelState>((set) => ({
   locations: saved?.locations ?? initialLocations,
   columns: saved?.columns ?? initialColumns,
-  days: saved?.days ?? initialDays,
-  activeDayId: saved?.activeDayId ?? 'day-1',
+  days: saved?.days ?? [{ id: '1', title: 'Día 1' }],
+  activeDayId: saved?.activeDayId ?? '1',
+  mapConfig: saved?.mapConfig ?? { lineStyle: 'solid' },
+  columnState: saved?.columnState ?? null,
+  importTrigger: saved?.importTrigger ?? 0,
 
       addLocation: (location) => set((state) => {
         const newLocs = [...state.locations, {
@@ -170,10 +192,13 @@ export const useTravelStore = create<TravelState>((set) => ({
       }),
 
       duplicateLocation: (id) => set((state) => {
-        const locToCopy = state.locations.find(l => l.id === id);
-        if (!locToCopy) return state;
-        const newLocs = [...state.locations, { ...locToCopy, id: uuidv4() }];
-        return { locations: applyDistances(newLocs, state.columns) };
+        const index = state.locations.findIndex(l => l.id === id);
+        if (index === -1) return state;
+        const locToCopy = state.locations[index];
+        const newLoc = { ...locToCopy, id: uuidv4() };
+        const newLocs = [...state.locations];
+        newLocs.splice(index + 1, 0, newLoc);
+        return { locations: applyDistances(newLocs as TravelLocation[], state.columns) };
       }),
 
       removeLocation: (id) => set((state) => {
@@ -186,6 +211,18 @@ export const useTravelStore = create<TravelState>((set) => ({
         const combined = [...otherDays, ...newActiveDayLocations];
         return { locations: applyDistances(combined, state.columns) };
       }),
+      
+      toggleLocationCompleted: (id) => set((state) => ({
+        locations: state.locations.map(loc => 
+          loc.id === id ? { ...loc, completed: !loc.completed } : loc
+        )
+      })),
+
+      updateLocationCategory: (id, category) => set((state) => ({
+        locations: state.locations.map(loc => 
+          loc.id === id ? { ...loc, category } : loc
+        )
+      })),
 
       addColumn: (title, type) => set((state) => ({
         columns: [...state.columns, { id: uuidv4(), title, type }]
@@ -259,7 +296,16 @@ export const useTravelStore = create<TravelState>((set) => ({
         locations: data.locations || state.locations,
         columns: data.columns || state.columns,
         days: data.days || state.days,
-        activeDayId: data.activeDayId || (data.days && data.days.length > 0 ? data.days[0].id : state.activeDayId)
+        activeDayId: data.activeDayId || (data.days && data.days.length > 0 ? data.days[0].id : state.activeDayId),
+        mapConfig: data.mapConfig || state.mapConfig,
+        columnState: data.columnState || state.columnState,
+        importTrigger: state.importTrigger + 1,
+      })),
+
+      updateColumnState: (stateUpdate) => set({ columnState: stateUpdate }),
+
+      updateMapConfig: (config) => set((state) => ({
+        mapConfig: { ...state.mapConfig, ...config }
       }))
 }));
 

@@ -1,5 +1,5 @@
 import { AdvancedMarker, APIProvider, Map, useMap } from '@vis.gl/react-google-maps';
-import { Maximize2, Search } from 'lucide-react-native';
+import { Maximize2, Search, Settings, Check } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
@@ -7,10 +7,22 @@ import { TravelLocation, useTravelStore } from '../store/useTravelStore';
 
 const isWebClient = Platform.OS === 'web' && typeof window !== 'undefined';
 
+// Helper para calcular rumbo (heading) entre dos puntos
+const computeHeading = (p1: [number, number], p2: [number, number]) => {
+    const dLat = p2[0] - p1[0];
+    const dLng = p2[1] - p1[1];
+    // Usamos atan2(x, y) donde x es el eje vertical (lat) y y el horizontal (lng)
+    // Pero en Google Maps rotation 0 es Norte (dy positivo), 90 es Este (dx positivo)
+    // Así que atan2(dx, dy) nos da el ángulo desde el Norte.
+    return (Math.atan2(dLng, dLat) * 180 / Math.PI + 360) % 360;
+};
+
 // --- Polylines no vienen por defecto en vis.gl, así que creamos un componente auxiliar ---
 const MapPolyline = ({ positions }: { positions: [number, number][] }) => {
     const map = useMap();
+    const mapConfig = useTravelStore(state => state.mapConfig);
     const polylineRef = useRef<google.maps.Polyline | null>(null);
+    const arrowsRef = useRef<google.maps.Polyline[]>([]);
 
     useEffect(() => {
         if (!map) return;
@@ -23,16 +35,60 @@ const MapPolyline = ({ positions }: { positions: [number, number][] }) => {
                 strokeOpacity: 1.0,
                 strokeWeight: 4,
             });
-        } else {
-            polylineRef.current.setPath(positions.map(p => ({ lat: p[0], lng: p[1] })));
         }
-    }, [map, positions]);
+
+        // Cleanup arrows
+        arrowsRef.current.forEach(a => a.setMap(null));
+        arrowsRef.current = [];
+
+        if (mapConfig.lineStyle === 'none') {
+            polylineRef.current.setMap(null);
+        } else if (mapConfig.lineStyle === 'arrows') {
+            polylineRef.current.setMap(null); // Ocultar línea sólida
+            
+            positions.forEach((p, index) => {
+                if (index === positions.length - 1) return;
+                const nextP = positions[index + 1];
+                
+                // Evitar dibujar flechas para segmentos de longitud 0 (duplicados)
+                const distSq = Math.pow(nextP[0] - p[0], 2) + Math.pow(nextP[1] - p[1], 2);
+                if (distSq < 1e-10) return;
+
+                const heading = computeHeading(p, nextP);
+                
+                // Usar un Marcador para la flecha: más fiable que los iconos de polilínea
+                const arrowMarker = new google.maps.Marker({
+                    map,
+                    position: { lat: p[0], lng: p[1] },
+                    zIndex: 2000 - index, // Asegurar que flechas tempranas estén encima
+                    icon: {
+                        // Estilo "Mars" (♂): Línea alargada + punta de flecha minimalista
+                        path: 'M 0,0 L 0,-12 M -1.5,-10.5 L 0,-12 L 1.5,-10.5',
+                        scale: 3,
+                        strokeColor: '#1e1b4b',
+                        strokeWeight: 2,
+                        fillOpacity: 0,
+                        rotation: heading,
+                        anchor: new google.maps.Point(0, 0) // Centrado exacto sobre el marcador
+                    },
+                    clickable: false
+                });
+                arrowsRef.current.push(arrowMarker as any);
+            });
+        } else {
+            polylineRef.current.setMap(map);
+            polylineRef.current.setOptions({
+                strokeOpacity: 1.0,
+                icons: [],
+                path: positions.map(p => ({ lat: p[0], lng: p[1] })),
+            });
+        }
+    }, [map, positions, mapConfig.lineStyle]);
 
     useEffect(() => {
         return () => {
-            if (polylineRef.current) {
-                polylineRef.current.setMap(null);
-            }
+            if (polylineRef.current) polylineRef.current.setMap(null);
+            arrowsRef.current.forEach(a => a.setMap(null));
         };
     }, []);
 
@@ -159,6 +215,7 @@ const PlacesAutocompleteUI = () => {
             if (dColId) newLoc[dColId] = '';
 
             addLocation(newLoc);
+            window.dispatchEvent(new CustomEvent('travel-scroll-to-bottom'));
             if (map) { map.panTo({ lat, lng }); map.setZoom(14); }
         } catch (error) { console.error("Error: ", error); }
     };
@@ -174,6 +231,7 @@ const PlacesAutocompleteUI = () => {
                     style={{ flex: 1, border: 'none', outline: 'none', padding: '8px 4px', fontSize: 16 }}
                 />
             </div>
+            <MapSettingsBtn />
             <FitBoundsBtn />
             {suggestions.length > 0 && (
                 <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, listStyle: 'none', margin: '8px 0 0', padding: 0, backgroundColor: 'white', borderRadius: 8, boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', overflow: 'hidden' }}>
@@ -189,6 +247,8 @@ const PlacesAutocompleteUI = () => {
     );
 };
 
+let globalIsDragging = false;
+
 const CustomMarker = ({ loc, index, columns }: { loc: any, index: number, columns: any[] }) => {
     const [selected, setSelected] = useState(false);
 
@@ -196,7 +256,12 @@ const CustomMarker = ({ loc, index, columns }: { loc: any, index: number, column
     const descColId = columns.find(c => c.title === 'Descripción')?.id || '';
     const hourColId = columns.find(c => c.title === 'Hora')?.id || '';
 
+    const handleDragStart = () => {
+        globalIsDragging = true;
+    };
+
     const handleDragEnd = async (e: google.maps.MapMouseEvent) => {
+        setTimeout(() => { globalIsDragging = false; }, 200);
         if (!e.latLng) return;
         const lat = e.latLng.lat();
         const lng = e.latLng.lng();
@@ -308,18 +373,29 @@ const CustomMarker = ({ loc, index, columns }: { loc: any, index: number, column
         <AdvancedMarker
             position={{ lat: loc.coordinates[0], lng: loc.coordinates[1] }}
             draggable={true}
+            zIndex={selected ? 5000 : 1000 - index}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onClick={onMarkerClick}
-            zIndex={selected ? 100 : 1}
         >
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', transform: 'translateY(50%)' }}>
                 <div style={{
-                    backgroundColor: '#4f46e5', color: 'white', borderRadius: '50%', width: 30, height: 30,
-                    display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold',
-                    border: '2px solid white', boxShadow: '0 2px 5px rgba(0,0,0,0.3)', fontFamily: 'system-ui',
-                    cursor: 'pointer'
+                    backgroundColor: loc.category === 'opcional' ? '#9333ea' : '#4f46e5', 
+                    color: 'white', 
+                    borderRadius: '50%', 
+                    width: 30, 
+                    height: 30,
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    fontWeight: 'bold',
+                    border: '2px solid white', 
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.3)', 
+                    fontFamily: 'system-ui',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.3s ease'
                 }}>
-                    {index + 1}
+                    {loc.planNumber || index + 1}
                 </div>
 
                 {selected && (
@@ -348,6 +424,75 @@ const CustomMarker = ({ loc, index, columns }: { loc: any, index: number, column
                 )}
             </div>
         </AdvancedMarker>
+    );
+};
+
+
+const MapSettingsBtn = () => {
+    const { mapConfig, updateMapConfig } = useTravelStore();
+    const [isOpen, setIsOpen] = useState(false);
+
+    const options = [
+        { id: 'solid', label: 'Líneas Continuas', icon: '⎯' },
+        { id: 'arrows', label: 'Flechas Indicadoras', icon: '➔' },
+        { id: 'none', label: 'Sin Líneas', icon: '•' },
+    ];
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                title="Configuración del Mapa"
+                style={{
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 12px', height: 40, flexShrink: 0,
+                    backgroundColor: 'white', borderRadius: 8,
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                    color: isOpen ? '#4f46e5' : '#6b7280', transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e: any) => { e.currentTarget.style.backgroundColor = '#eef2ff'; e.currentTarget.style.color = '#4f46e5'; }}
+                onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = 'white'; if (!isOpen) e.currentTarget.style.color = '#6b7280'; }}
+            >
+                <Settings size={18} />
+            </div>
+
+            {isOpen && (
+                <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setIsOpen(false)} />
+                    <div style={{
+                        position: 'absolute', top: 48, right: 0, width: 200, zIndex: 1000,
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)',
+                        borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden',
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                        padding: '6px', fontFamily: 'system-ui'
+                    }}>
+                        <div style={{ fontSize: 11, fontWeight: 'bold', color: '#94a3b8', padding: '8px 12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Estilo de Ruta
+                        </div>
+                        {options.map((opt) => (
+                            <div
+                                key={opt.id}
+                                onClick={() => { updateMapConfig({ lineStyle: opt.id as any }); setIsOpen(false); }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                                    borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s',
+                                    backgroundColor: mapConfig.lineStyle === opt.id ? '#eef2ff' : 'transparent',
+                                    color: mapConfig.lineStyle === opt.id ? '#4f46e5' : '#374151',
+                                    fontWeight: mapConfig.lineStyle === opt.id ? '700' : '500',
+                                    fontSize: 13
+                                }}
+                                onMouseEnter={(e: any) => { if (mapConfig.lineStyle !== opt.id) e.currentTarget.style.backgroundColor = '#f9fafb'; }}
+                                onMouseLeave={(e: any) => { if (mapConfig.lineStyle !== opt.id) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                            >
+                                <span style={{ fontSize: 16, width: 20, textAlign: 'center' }}>{opt.icon}</span>
+                                <span style={{ flex: 1 }}>{opt.label}</span>
+                                {mapConfig.lineStyle === opt.id && <Check size={14} color="#4f46e5" />}
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
     );
 };
 
@@ -394,7 +539,9 @@ const MapWeb = () => {
     const [mounted, setMounted] = useState(false);
 
     const activeLocations = useMemo(() => {
-        return locations.filter(loc => loc.dayId === activeDayId);
+        const filtered = locations.filter(loc => loc.dayId === activeDayId);
+        // Enrich with planNumber based on original store order for this day
+        return filtered.map((l, i) => ({ ...l, planNumber: i + 1 }));
     }, [locations, activeDayId]);
 
     useEffect(() => {
@@ -403,7 +550,40 @@ const MapWeb = () => {
         }
     }, []);
 
+    // Lógica para separar marcadores en la misma posición (Option 1: Deterministic Offset)
+    const displayLocations = useMemo(() => {
+        const counts: Record<string, number> = {};
+        return activeLocations.map((loc) => {
+            const key = `${loc.coordinates[0]},${loc.coordinates[1]}`;
+            const occurrence = counts[key] || 0;
+            counts[key] = occurrence + 1;
+
+            if (occurrence > 0) {
+                // Aplicar un pequeño desplazamiento North-East (aprox 15-20m por ocurrencia)
+                return {
+                    ...loc,
+                    displayCoordinates: [
+                        loc.coordinates[0] - (occurrence * 0.00012), // Un poco al sur
+                        loc.coordinates[1] + (occurrence * 0.00018)  // Un poco al este
+                    ] as [number, number]
+                };
+            }
+            return { ...loc, displayCoordinates: loc.coordinates };
+        });
+    }, [activeLocations]);
+
+    const polylinePositions = useMemo(() => 
+        displayLocations.map((loc: any) => loc.displayCoordinates) as [number, number][], 
+    [displayLocations]);
+
+    const defaultCenter = useMemo(() => 
+        displayLocations.length > 0 
+            ? { lat: displayLocations[0].displayCoordinates[0], lng: displayLocations[0].displayCoordinates[1] } 
+            : { lat: 30.0, lng: 0.0 }, 
+    [displayLocations]);
+
     const handleMapClick = async (e: any) => {
+        if (globalIsDragging) return;
         if (!e.detail || !e.detail.latLng) return;
         const lat = e.detail.latLng.lat;
         const lng = e.detail.latLng.lng;
@@ -501,6 +681,7 @@ const MapWeb = () => {
         if (dColId) newLoc[dColId] = '';
 
         addLocation(newLoc);
+        window.dispatchEvent(new CustomEvent('travel-scroll-to-bottom'));
     };
 
     if (!mounted || !isWebClient) {
@@ -510,9 +691,6 @@ const MapWeb = () => {
             </View>
         );
     }
-
-    const defaultCenter = activeLocations.length > 0 ? { lat: activeLocations[0].coordinates[0], lng: activeLocations[0].coordinates[1] } : { lat: 30.0, lng: 0.0 };
-    const polylinePositions = activeLocations.map((loc: TravelLocation) => loc.coordinates) as [number, number][];
 
     return (
         <View style={styles.container}>
@@ -544,8 +722,13 @@ const MapWeb = () => {
                         </div>
                     )}
 
-                    {activeLocations.map((loc: TravelLocation, index: number) => (
-                        <CustomMarker key={loc.id} loc={loc} index={index} columns={columns} />
+                    {displayLocations.map((loc: any, index: number) => (
+                        <CustomMarker 
+                            key={loc.id} 
+                            loc={{...loc, coordinates: loc.displayCoordinates}} 
+                            index={index} 
+                            columns={columns} 
+                        />
                     ))}
 
                     {activeLocations.length > 1 && (
